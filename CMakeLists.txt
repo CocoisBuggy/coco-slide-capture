@@ -26,15 +26,11 @@ set(SOURCES
     src/main.cpp
     src/CameraManager.cpp
     src/LiveViewRenderer.cpp
-    src/EventHandler.cpp
-    src/FileManager.cpp
 )
 
 set(HEADERS
     include/CameraManager.h
     include/LiveViewRenderer.h
-    include/EventHandler.h
-    include/FileManager.h
 )
 
 # Create executable
@@ -44,7 +40,6 @@ add_executable(film ${SOURCES} ${HEADERS})
 target_link_libraries(film PRIVATE 
     edsdk
     ${GTK4_LIBRARIES}
-    /nix/store/rs3qlyvyz8bzr9nx2diah7ds4vgsfcm0-steam-1.0.0.85-fhsenv-rootfs/usr/lib64/libusb-1.0.so
 )
 
 # Include directories
