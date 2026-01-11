@@ -87,6 +87,15 @@ static void activate(GtkApplication *app, gpointer user_data) {
     GtkWidget *main_box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
     gtk_window_set_child(GTK_WINDOW(window), main_box);
 
+    // Status label at top
+    GtkWidget *status_label = gtk_label_new("Status: Initializing");
+    gtk_label_set_use_markup(GTK_LABEL(status_label), TRUE);
+    gtk_widget_set_margin_start(status_label, 10);
+    gtk_widget_set_margin_end(status_label, 10);
+    gtk_widget_set_margin_top(status_label, 5);
+    gtk_widget_set_margin_bottom(status_label, 5);
+    gtk_box_append(GTK_BOX(main_box), status_label);
+
     // Live view area - takes most space
     GtkWidget *live_view = gtk_drawing_area_new();
     gtk_widget_set_vexpand(live_view, TRUE);
@@ -100,10 +109,6 @@ static void activate(GtkApplication *app, gpointer user_data) {
     gtk_widget_set_margin_top(controls, 5);
     gtk_widget_set_margin_bottom(controls, 5);
     gtk_box_append(GTK_BOX(main_box), controls);
-
-    // Status label
-    GtkWidget *status_label = gtk_label_new("Status: Disconnected");
-    gtk_box_append(GTK_BOX(controls), status_label);
 
     // Current cassette context
     GtkWidget *dir_label = gtk_label_new("Current Cassette Context:");
@@ -138,9 +143,9 @@ static void activate(GtkApplication *app, gpointer user_data) {
         renderer = new LiveViewRenderer(live_view, camMgr);
         gtk_drawing_area_set_draw_func(GTK_DRAWING_AREA(live_view), draw_live_view, renderer, NULL);
         renderer->start();
-        gtk_label_set_text(GTK_LABEL(status_label), "Status: Connected");
+        gtk_label_set_markup(GTK_LABEL(status_label), "Status: <span foreground='green'>Connected</span>");
     } else {
-        gtk_label_set_text(GTK_LABEL(status_label), "Status: Failed to connect camera");
+        gtk_label_set_markup(GTK_LABEL(status_label), "Status: <span foreground='red'>Failed to connect camera</span>");
     }
 
     gtk_window_present(GTK_WINDOW(window));
