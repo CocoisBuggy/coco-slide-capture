@@ -40,6 +40,16 @@ set(HEADERS
 # Create executable
 add_executable(film ${SOURCES} ${HEADERS})
 
+# Clang-format target
+find_program(CLANG_FORMAT clang-format)
+if(CLANG_FORMAT)
+    add_custom_target(format
+        COMMAND ${CLANG_FORMAT} -i ${SOURCES} ${HEADERS}
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        COMMENT "Formatting source files with clang-format"
+    )
+endif()
+
 # Link libraries
 target_link_libraries(film PRIVATE 
     edsdk
