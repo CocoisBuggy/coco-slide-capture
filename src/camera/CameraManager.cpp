@@ -69,12 +69,21 @@ bool CameraManager::connectCamera() {
     // Not critical, continue
   }
 
-  // Set save to host
-  EdsUInt32 saveTo = kEdsSaveTo_Host;
+  // Set save to both (card and host)
+  EdsUInt32 saveTo = kEdsSaveTo_Both;
   err = EdsSetPropertyData(camera, kEdsPropID_SaveTo, 0, sizeof(EdsUInt32),
                            &saveTo);
   if (err != EDS_ERR_OK) {
-    std::cout << "Failed to set save to host: " << err << std::endl;
+    std::cout << "Failed to set save to both: " << err << std::endl;
+    // Not critical, continue
+  }
+
+  // Set AE mode to Manual to allow capture
+  EdsUInt32 aeMode = kEdsAEMode_Manual;
+  err = EdsSetPropertyData(camera, kEdsPropID_AEMode, 0, sizeof(EdsUInt32),
+                           &aeMode);
+  if (err != EDS_ERR_OK) {
+    std::cout << "Failed to set AE mode to Manual: " << err << std::endl;
     // Not critical, continue
   }
 
@@ -131,9 +140,45 @@ bool CameraManager::capture(const std::string& directory) {
     std::filesystem::create_directories(directory);
   }
 
+  // Check save destination
+  EdsUInt32 saveTo;
+  EdsError err = EdsGetPropertyData(camera, kEdsPropID_SaveTo, 0,
+                                    sizeof(EdsUInt32), &saveTo);
+  if (err != EDS_ERR_OK) {
+    std::cout << "Failed to get SaveTo: " << err << std::endl;
+  } else {
+    std::cout << "SaveTo: " << saveTo << " (should be " << kEdsSaveTo_Both
+              << ")" << std::endl;
+  }
+
+  // Lock UI for capture
+  err = EdsSendStatusCommand(camera, kEdsCameraStatusCommand_UILock, 0);
+  if (err != EDS_ERR_OK) {
+    std::cout << "Failed to lock UI: " << err << std::endl;
+    return false;
+  }
+
+  // Enter direct transfer mode for host save
+  err = EdsSendStatusCommand(camera,
+                             kEdsCameraStatusCommand_EnterDirectTransfer, 0);
+  if (err != EDS_ERR_OK) {
+    std::cout << "Release shutter failed: " << err << std::endl;
+    EdsSendStatusCommand(camera, kEdsCameraStatusCommand_ExitDirectTransfer, 0);
+    EdsSendStatusCommand(camera, kEdsCameraStatusCommand_UIUnLock, 0);
+    return false;
+  }
+
+  // Enter direct transfer mode
+  err = EdsSendStatusCommand(camera,
+                             kEdsCameraStatusCommand_EnterDirectTransfer, 0);
+  if (err != EDS_ERR_OK) {
+    std::cout << "Failed to enter direct transfer: " << err << std::endl;
+    return false;
+  }
+
   // Half press for auto focus and auto expose
-  EdsError err = EdsSendCommand(camera, kEdsCameraCommand_PressShutterButton,
-                                kEdsCameraCommand_ShutterButton_Halfway);
+  err = EdsSendCommand(camera, kEdsCameraCommand_PressShutterButton,
+                       kEdsCameraCommand_ShutterButton_Halfway);
   if (err != EDS_ERR_OK) {
     std::cout << "Half press failed: " << err << std::endl;
     return false;
@@ -155,7 +200,26 @@ bool CameraManager::capture(const std::string& directory) {
                        kEdsCameraCommand_ShutterButton_OFF);
   if (err != EDS_ERR_OK) {
     std::cout << "Release shutter failed: " << err << std::endl;
+    startLiveView();  // Try to restart live view
     return false;
+  }
+
+  // Exit direct transfer mode
+  err = EdsSendStatusCommand(camera, kEdsCameraStatusCommand_ExitDirectTransfer,
+                             0);
+  if (err != EDS_ERR_OK) {
+    std::cout << "Failed to exit direct transfer: " << err << std::endl;
+  }
+
+  // Unlock UI
+  err = EdsSendStatusCommand(camera, kEdsCameraStatusCommand_UIUnLock, 0);
+  if (err != EDS_ERR_OK) {
+    std::cout << "Failed to unlock UI: " << err << std::endl;
+  }
+
+  // Restart live view
+  if (!startLiveView()) {
+    std::cout << "Failed to restart live view" << std::endl;
   }
 
   std::cout << "Capture initiated" << std::endl;
