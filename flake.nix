@@ -34,6 +34,9 @@
 
             boost
             fmt
+            gtk4
+            pkg-config
+            libusb1
 
             # Other development utilities
             gdb
@@ -55,6 +58,8 @@
                   llvmPackages.libcxx
                   boost
                   fmt
+                  gtk4
+                  libusb1
                 ]
               )
             }:$LD_LIBRARY_PATH
