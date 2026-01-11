@@ -27,30 +27,41 @@ void LiveViewRenderer::stop() {
 void LiveViewRenderer::liveViewLoop() {
     while (running) {
         EdsStreamRef stream = NULL;
+        EdsEvfImageRef evfImage = NULL;
         EdsError err = EdsCreateMemoryStream(0, &stream);
         if (err == EDS_ERR_OK) {
-            err = EdsDownloadEvfImage(cameraMgr->getCamera(), stream);
+            err = EdsCreateEvfImageRef(stream, &evfImage);
             if (err == EDS_ERR_OK) {
-            EdsUInt64 size = 0;
-            EdsGetLength(stream, &size);
-                EdsVoid* data = NULL;
-                EdsGetPointer(stream, &data);
-                if (data && size > 0) {
-                    GdkPixbufLoader* loader = gdk_pixbuf_loader_new();
-                    gdk_pixbuf_loader_write(loader, (const guchar*)data, size, NULL);
-                    gdk_pixbuf_loader_close(loader, NULL);
-                    GdkPixbuf* pixbuf = gdk_pixbuf_loader_get_pixbuf(loader);
-                    if (pixbuf) {
-                        g_object_ref(pixbuf);
-                        // Update currentImage in main thread
-                        g_idle_add(updateImage, this);
-                        // But to pass pixbuf, perhaps use a struct or set here
-                        // For simplicity, assume single thread access
-                        if (currentImage) g_object_unref(currentImage);
-                        currentImage = pixbuf;
-                    }
-                    g_object_unref(loader);
+                err = EdsDownloadEvfImage(cameraMgr->getCamera(), evfImage);
+                if (err != EDS_ERR_OBJECT_NOTREADY) {
+                    std::cout << "Download err: " << err << std::endl;
                 }
+                if (err == EDS_ERR_OK) {
+                    EdsUInt64 size = 0;
+                    EdsGetLength(stream, &size);
+                    EdsVoid* data = NULL;
+                    EdsGetPointer(stream, &data);
+                    std::cout << "Data size: " << size << std::endl;
+                    if (data && size > 0) {
+                        GdkPixbufLoader* loader = gdk_pixbuf_loader_new();
+                        gdk_pixbuf_loader_write(loader, (const guchar*)data, size, NULL);
+                        gdk_pixbuf_loader_close(loader, NULL);
+                        GdkPixbuf* pixbuf = gdk_pixbuf_loader_get_pixbuf(loader);
+                        if (pixbuf) {
+                            std::cout << "Got pixbuf" << std::endl;
+                            g_object_ref(pixbuf);
+                            // Update currentImage in main thread
+                            g_idle_add(updateImage, this);
+                            // For simplicity, assume single thread access
+                            if (currentImage) g_object_unref(currentImage);
+                            currentImage = pixbuf;
+                        } else {
+                            std::cout << "No pixbuf" << std::endl;
+                        }
+                        g_object_unref(loader);
+                    }
+                }
+                EdsRelease(evfImage);
             }
             EdsRelease(stream);
         }

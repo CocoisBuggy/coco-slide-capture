@@ -55,14 +55,28 @@ bool CameraManager::connectCamera() {
         return false;
     }
 
+    // Set save to host
+    EdsUInt32 saveTo = kEdsSaveTo_Host;
+    err = EdsSetPropertyData(camera, kEdsPropID_SaveTo, 0, sizeof(EdsUInt32), &saveTo);
+    if (err != EDS_ERR_OK) {
+        std::cout << "Failed to set save to host: " << err << std::endl;
+        // Not critical, continue
+    }
+
     std::cout << "Camera connected" << std::endl;
     return true;
 }
 
 bool CameraManager::startLiveView() {
     if (!camera) return false;
-    EdsUInt32 device = kEdsEvfOutputDevice_PC;
-    EdsError err = EdsSetPropertyData(camera, kEdsPropID_Evf_OutputDevice, 0, sizeof(EdsUInt32), &device);
+    EdsUInt32 mode = 1; // Enable live view mode
+    EdsError err = EdsSetPropertyData(camera, kEdsPropID_Evf_Mode, 0, sizeof(EdsUInt32), &mode);
+    if (err != EDS_ERR_OK) {
+        std::cout << "Failed to set live view mode: " << err << std::endl;
+        return false;
+    }
+    EdsUInt32 device = kEdsEvfOutputDevice_PC | kEdsEvfOutputDevice_TFT;
+    err = EdsSetPropertyData(camera, kEdsPropID_Evf_OutputDevice, 0, sizeof(EdsUInt32), &device);
     if (err != EDS_ERR_OK) {
         std::cout << "Failed to start live view: " << err << std::endl;
         return false;

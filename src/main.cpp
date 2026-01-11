@@ -3,6 +3,7 @@
 #include <string>
 #include <cairo.h>
 #include <gdk-pixbuf/gdk-pixbuf.h>
+#include <algorithm>
 #include "CameraManager.h"
 #include "LiveViewRenderer.h"
 
@@ -18,8 +19,27 @@ LiveViewRenderer* renderer = nullptr;
 static void draw_live_view(GtkDrawingArea *area, cairo_t *cr, int width, int height, gpointer data) {
     LiveViewRenderer* rend = static_cast<LiveViewRenderer*>(data);
     if (rend && rend->getCurrentImage()) {
-        gdk_cairo_set_source_pixbuf(cr, rend->getCurrentImage(), 0, 0);
-        cairo_paint(cr);
+        GdkPixbuf* pixbuf = rend->getCurrentImage();
+        int img_width = gdk_pixbuf_get_width(pixbuf);
+        int img_height = gdk_pixbuf_get_height(pixbuf);
+
+        // Calculate scale to fit while maintaining aspect ratio
+        double scale_x = (double)width / img_width;
+        double scale_y = (double)height / img_height;
+        double scale = std::min(scale_x, scale_y);
+
+        int new_width = img_width * scale;
+        int new_height = img_height * scale;
+
+        GdkPixbuf* scaled = gdk_pixbuf_scale_simple(pixbuf, new_width, new_height, GDK_INTERP_BILINEAR);
+        if (scaled) {
+            // Center the image
+            int x = (width - new_width) / 2;
+            int y = (height - new_height) / 2;
+            gdk_cairo_set_source_pixbuf(cr, scaled, x, y);
+            cairo_paint(cr);
+            g_object_unref(scaled);
+        }
     } else {
         // Draw a black rectangle as placeholder
         cairo_set_source_rgb(cr, 0, 0, 0);
