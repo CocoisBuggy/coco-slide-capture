@@ -60,9 +60,13 @@
                   fmt
                   gtk4
                   libusb1
+                  pkg-config
                 ]
               )
             }:$LD_LIBRARY_PATH
+
+            # Add pkg-config path for GTK4
+            export PKG_CONFIG_PATH="${pkgs.gtk4}/lib/pkgconfig:$PKG_CONFIG_PATH"
           '';
         };
       }
