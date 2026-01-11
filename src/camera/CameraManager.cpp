@@ -1,4 +1,4 @@
-#include "CameraManager.h"
+#include "camera/CameraManager.h"
 #include <iostream>
 
 CameraManager::CameraManager() : camera(NULL), isInitialized(false) {}

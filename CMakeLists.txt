@@ -11,6 +11,8 @@ pkg_check_modules(GTK4 REQUIRED gtk4)
 
 # Include directories
 include_directories(include)
+include_directories(include/camera)
+include_directories(include/ui)
 include_directories(EDSDK/Header)
 
 # EDSDK library
@@ -24,13 +26,15 @@ set_target_properties(edsdk PROPERTIES
 # Source files
 set(SOURCES
     src/main.cpp
-    src/CameraManager.cpp
-    src/LiveViewRenderer.cpp
+    src/camera/CameraManager.cpp
+    src/camera/LiveViewRenderer.cpp
+    src/ui/MainWindow.cpp
 )
 
 set(HEADERS
-    include/CameraManager.h
-    include/LiveViewRenderer.h
+    include/camera/CameraManager.h
+    include/camera/LiveViewRenderer.h
+    include/ui/MainWindow.h
 )
 
 # Create executable

@@ -41,6 +41,7 @@
             # Other development utilities
             gdb
             valgrind
+            usbutils
           ];
 
           shellHook = ''

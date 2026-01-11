@@ -1,4 +1,4 @@
-#include "LiveViewRenderer.h"
+#include "camera/LiveViewRenderer.h"
 #include <gdk-pixbuf/gdk-pixbuf.h>
 #include <iostream>
 #include <chrono>
@@ -33,22 +33,22 @@ void LiveViewRenderer::liveViewLoop() {
             err = EdsCreateEvfImageRef(stream, &evfImage);
             if (err == EDS_ERR_OK) {
                 err = EdsDownloadEvfImage(cameraMgr->getCamera(), evfImage);
-                if (err != EDS_ERR_OBJECT_NOTREADY) {
+                if (err != EDS_ERR_OBJECT_NOTREADY && err != EDS_ERR_OK) {
                     std::cout << "Download err: " << err << std::endl;
                 }
+                
                 if (err == EDS_ERR_OK) {
                     EdsUInt64 size = 0;
                     EdsGetLength(stream, &size);
                     EdsVoid* data = NULL;
                     EdsGetPointer(stream, &data);
-                    std::cout << "Data size: " << size << std::endl;
+
                     if (data && size > 0) {
                         GdkPixbufLoader* loader = gdk_pixbuf_loader_new();
                         gdk_pixbuf_loader_write(loader, (const guchar*)data, size, NULL);
                         gdk_pixbuf_loader_close(loader, NULL);
                         GdkPixbuf* pixbuf = gdk_pixbuf_loader_get_pixbuf(loader);
                         if (pixbuf) {
-                            std::cout << "Got pixbuf" << std::endl;
                             g_object_ref(pixbuf);
                             // Update currentImage in main thread
                             g_idle_add(updateImage, this);
