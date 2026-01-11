@@ -65,6 +65,14 @@ gboolean MainWindow::on_key_press(GtkEventControllerKey *controller,
                 << std::endl;
     }
     return TRUE;
+  } else if (keyval == GDK_KEY_n && (state & GDK_CONTROL_MASK)) {
+    std::cout << "Ctrl+N pressed: Add Batch" << std::endl;
+    on_add_batch_clicked(GTK_BUTTON(self->batch_button), self);
+    return TRUE;
+  } else if (keyval == GDK_KEY_d && (state & GDK_CONTROL_MASK)) {
+    std::cout << "Ctrl+D pressed: Set Date" << std::endl;
+    on_set_date_clicked(GTK_BUTTON(self->set_date_button), self->popover);
+    return TRUE;
   }
   return FALSE;
 }
