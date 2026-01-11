@@ -4,6 +4,7 @@
 #include <gdk-pixbuf/gdk-pixbuf.h>
 
 #include <algorithm>
+#include <cctype>
 #include <iostream>
 #include <string>
 
@@ -57,20 +58,15 @@ gboolean MainWindow::on_key_press(GtkEventControllerKey *controller,
   MainWindow *self = static_cast<MainWindow *>(user_data);
   if (keyval == GDK_KEY_space) {
     std::cout << "Spacebar pressed: Trigger capture" << std::endl;
-    // In full app, trigger capture
+    if (self->camMgr && !self->active_directory.empty()) {
+      self->camMgr->capture(self->active_directory);
+    } else {
+      std::cout << "Camera not connected or no active directory set"
+                << std::endl;
+    }
     return TRUE;
   }
   return FALSE;
-}
-
-// Callback for directory entry changed
-void MainWindow::on_directory_changed(GtkEditable *editable,
-                                      gpointer user_data) {
-  MainWindow *self = static_cast<MainWindow *>(user_data);
-  const char *text = gtk_editable_get_text(editable);
-  self->active_directory = text;
-  std::cout << "Active directory set to: " << self->active_directory
-            << std::endl;
 }
 
 // Callback for set date button
@@ -97,6 +93,100 @@ void MainWindow::on_date_selected(GtkCalendar *calendar, gpointer user_data) {
   GtkWidget *popover =
       gtk_widget_get_ancestor(GTK_WIDGET(calendar), GTK_TYPE_POPOVER);
   if (popover) gtk_popover_popdown(GTK_POPOVER(popover));
+}
+
+// Callback for add batch button
+void MainWindow::on_add_batch_clicked(GtkButton *button, gpointer user_data) {
+  MainWindow *self = static_cast<MainWindow *>(user_data);
+
+  // Create popover
+  GtkWidget *popover = gtk_popover_new();
+  gtk_widget_set_parent(popover, self->batch_button);
+
+  GtkWidget *box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 10);
+  gtk_popover_set_child(GTK_POPOVER(popover), box);
+
+  // Date
+  GtkWidget *date_label = gtk_label_new("Date:");
+  GtkWidget *date_cal = gtk_calendar_new();
+  gtk_box_append(GTK_BOX(box), date_label);
+  gtk_box_append(GTK_BOX(box), date_cal);
+
+  // Name
+  GtkWidget *name_label = gtk_label_new("Name:");
+  GtkWidget *name_entry = gtk_entry_new();
+  gtk_box_append(GTK_BOX(box), name_label);
+  gtk_box_append(GTK_BOX(box), name_entry);
+
+  // Buttons
+  GtkWidget *button_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
+  gtk_box_append(GTK_BOX(box), button_box);
+  GtkWidget *ok_button = gtk_button_new_with_label("OK");
+  GtkWidget *cancel_button = gtk_button_new_with_label("Cancel");
+  gtk_box_append(GTK_BOX(button_box), cancel_button);
+  gtk_box_append(GTK_BOX(button_box), ok_button);
+
+  // Data
+  DialogData *data = new DialogData{self, date_cal, name_entry, popover};
+
+  g_signal_connect(ok_button, "clicked", G_CALLBACK(on_dialog_ok), data);
+  g_signal_connect(cancel_button, "clicked", G_CALLBACK(on_dialog_cancel),
+                   data);
+
+  gtk_popover_popup(GTK_POPOVER(popover));
+}
+
+// Callback for dialog OK
+void MainWindow::on_dialog_ok(GtkButton *button, gpointer user_data) {
+  DialogData *data = static_cast<DialogData *>(user_data);
+
+  // Get date
+  GDateTime *date = gtk_calendar_get_date(GTK_CALENDAR(data->date_cal));
+  if (date) {
+    char *date_str = g_date_time_format(date, "%Y-%m-%d");
+    data->self->context_date = date_str;
+    char *label_text = g_strdup_printf("Context Date: <b>%s</b>", date_str);
+    gtk_label_set_markup(GTK_LABEL(data->self->date_display_label), label_text);
+    g_free(date_str);
+    g_free(label_text);
+    g_date_time_unref(date);
+  }
+
+  // Get name
+  const char *name_text = gtk_editable_get_text(GTK_EDITABLE(data->name_entry));
+  std::string name = name_text;
+  // Trim
+  size_t start = name.find_first_not_of(" \t");
+  if (start != std::string::npos) {
+    size_t end = name.find_last_not_of(" \t");
+    name = name.substr(start, end - start + 1);
+  } else {
+    name = "";
+  }
+  if (!name.empty() && std::all_of(name.begin(), name.end(),
+                                   [](char c) { return std::isprint(c); })) {
+    data->self->batch_name = name;
+    data->self->active_directory =
+        data->self->context_date + "/" + data->self->batch_name;
+    char *batch_text = g_strdup_printf("Current Batch: <b>%s</b>",
+                                       data->self->batch_name.c_str());
+    gtk_label_set_markup(GTK_LABEL(data->self->batch_display_label),
+                         batch_text);
+    std::cout << "Batch added: " << data->self->active_directory << std::endl;
+    g_free(batch_text);
+  } else {
+    std::cout << "Invalid batch name" << std::endl;
+  }
+
+  gtk_popover_popdown(GTK_POPOVER(data->popover));
+  delete data;
+}
+
+// Callback for dialog cancel
+void MainWindow::on_dialog_cancel(GtkButton *button, gpointer user_data) {
+  DialogData *data = static_cast<DialogData *>(user_data);
+  gtk_popover_popdown(GTK_POPOVER(data->popover));
+  delete data;
 }
 
 MainWindow::MainWindow(GtkApplication *app)
@@ -133,13 +223,15 @@ MainWindow::MainWindow(GtkApplication *app)
   gtk_widget_set_margin_bottom(controls, 5);
   gtk_box_append(GTK_BOX(main_box), controls);
 
-  // Current cassette context
-  GtkWidget *dir_label = gtk_label_new("Current Cassette Context:");
-  dir_entry = gtk_entry_new();
-  gtk_editable_set_width_chars(GTK_EDITABLE(dir_entry), 30);
-  gtk_box_append(GTK_BOX(controls), dir_label);
-  gtk_box_append(GTK_BOX(controls), dir_entry);
-  g_signal_connect(dir_entry, "changed", G_CALLBACK(on_directory_changed),
+  // Current batch
+  GtkWidget *batch_label = gtk_label_new("Current Batch:");
+  batch_button = gtk_button_new_with_label("Add Batch");
+  batch_display_label = gtk_label_new("Current Batch: none");
+  gtk_label_set_use_markup(GTK_LABEL(batch_display_label), TRUE);
+  gtk_box_append(GTK_BOX(controls), batch_label);
+  gtk_box_append(GTK_BOX(controls), batch_display_label);
+  gtk_box_append(GTK_BOX(controls), batch_button);
+  g_signal_connect(batch_button, "clicked", G_CALLBACK(on_add_batch_clicked),
                    this);
 
   // Context date

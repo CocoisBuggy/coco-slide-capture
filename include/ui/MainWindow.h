@@ -8,6 +8,12 @@
 
 class MainWindow {
 public:
+  struct DialogData {
+    MainWindow *self;
+    GtkWidget *date_cal;
+    GtkWidget *name_entry;
+    GtkWidget *popover;
+  };
     MainWindow(GtkApplication* app);
     ~MainWindow();
 
@@ -18,7 +24,8 @@ private:
     GtkWidget* window;
     GtkWidget* status_label;
     GtkWidget* live_view;
-    GtkWidget* dir_entry;
+    GtkWidget* batch_button;
+    GtkWidget* batch_display_label;
     GtkWidget* date_display_label;
     GtkWidget* set_date_button;
     GtkWidget* popover;
@@ -27,6 +34,7 @@ private:
     // State
     std::string active_directory;
     std::string context_date;
+    std::string batch_name;
 
     // Camera
     CameraManager* camMgr;
@@ -35,7 +43,9 @@ private:
     // Callbacks
     static void draw_live_view(GtkDrawingArea *area, cairo_t *cr, int width, int height, gpointer data);
     static gboolean on_key_press(GtkEventControllerKey *controller, guint keyval, guint keycode, GdkModifierType state, gpointer user_data);
-    static void on_directory_changed(GtkEditable *editable, gpointer user_data);
+    static void on_add_batch_clicked(GtkButton *button, gpointer user_data);
+    static void on_dialog_ok(GtkButton *button, gpointer user_data);
+    static void on_dialog_cancel(GtkButton *button, gpointer user_data);
     static void on_set_date_clicked(GtkButton *button, gpointer user_data);
     static void on_date_selected(GtkCalendar *calendar, gpointer user_data);
 };
