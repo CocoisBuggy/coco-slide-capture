@@ -37,6 +37,9 @@ class CameraManager {
   // Persistent camera state
   CameraState cameraState;
 
+  // Global sequence number for unique filenames
+  static int globalSequenceNumber;
+
   static EdsError EDSCALLBACK objectEventHandler(EdsObjectEvent event,
                                                  EdsBaseRef object,
                                                  EdsVoid* context);
@@ -48,6 +51,10 @@ class CameraManager {
   void loadCameraState();
   void saveCameraState();
   void resetCameraState();
+
+  // State setters with auto-save
+  void setCassette(const std::string& cassette);
+  void setCurrentDate();
 };
 
 #endif  // CAMERAMANAGER_H

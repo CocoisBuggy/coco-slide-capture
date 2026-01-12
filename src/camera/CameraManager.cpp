@@ -4,7 +4,9 @@
 #include <cstdlib>
 #include <ctime>
 #include <filesystem>
+#include <iomanip>
 #include <iostream>
+#include <sstream>
 #include <thread>
 
 CameraManager::CameraManager()
@@ -190,6 +192,19 @@ bool CameraManager::capture(const std::string& directory) {
   if (!std::filesystem::exists(captureDirectory)) {
     std::filesystem::create_directories(captureDirectory);
   }
+
+  // Update cassette name and current date in state
+  cameraState.lastCassette = directory;
+
+  // Get current date
+  auto now = std::time(nullptr);
+  auto tm = *std::localtime(&now);
+  std::ostringstream dateStream;
+  dateStream << std::put_time(&tm, "%Y-%m-%d");
+  cameraState.lastDate = dateStream.str();
+
+  // Save the updated state immediately
+  saveCameraState();
 
   // Add a small delay to prevent rapid capture attempts
   std::this_thread::sleep_for(std::chrono::milliseconds(500));
@@ -405,76 +420,215 @@ std::string CameraManager::generateUniqueFilename(
   // Update global sequence for next time
   cameraState.sequenceNumber = sequence;
   std::cout << "File exists, using: " << newFilename << std::endl;
+
+  // Save the updated sequence number immediately
+  saveCameraState();
+
   return newFilename;
 }
 
 void CameraManager::loadCameraState() {
   const char* home = std::getenv("HOME");
-  if (!home) return;
+  if (!home) {
+    std::cout << "HOME environment variable not found, using defaults"
+              << std::endl;
+    return;
+  }
 
   std::string cacheDir = std::string(home) + "/.cache/cocoscanner";
-  std::filesystem::create_directories(cacheDir);
+  std::error_code ec;
+  std::filesystem::create_directories(cacheDir, ec);
+  if (ec) {
+    std::cout << "Failed to create cache directory: " << ec.message()
+              << std::endl;
+    return;
+  }
 
   std::string stateFile = cacheDir + "/camera_state.json";
   std::ifstream file(stateFile);
 
-  if (file.is_open()) {
-    // Simple JSON parsing for our state
-    std::string line;
-    while (std::getline(file, line)) {
-      if (line.find("\"sequenceNumber\"") != std::string::npos) {
-        size_t pos = line.find(":") + 1;
-        if (pos != std::string::npos) {
-          cameraState.sequenceNumber = std::stoi(line.substr(pos));
+  if (!file.is_open()) {
+    // File doesn't exist, create with defaults
+    std::cout << "No camera state file found, creating with defaults"
+              << std::endl;
+    cameraState = CameraState{};  // Use default values
+    saveCameraState();            // Create the file
+    return;
+  }
+
+  try {
+    std::string content((std::istreambuf_iterator<char>(file)),
+                        std::istreambuf_iterator<char>());
+    file.close();
+
+    // Robust JSON parsing without external dependencies
+    auto extractJsonValue = [&content](const std::string& key) -> std::string {
+      std::string searchKey = "\"" + key + "\"";
+      size_t keyPos = content.find(searchKey);
+      if (keyPos == std::string::npos) return "";
+
+      size_t colonPos = content.find(":", keyPos);
+      if (colonPos == std::string::npos) return "";
+
+      size_t valueStart = colonPos + 1;
+      // Skip whitespace
+      while (valueStart < content.length() &&
+             (content[valueStart] == ' ' || content[valueStart] == '\t' ||
+              content[valueStart] == '\n' || content[valueStart] == '\r')) {
+        valueStart++;
+      }
+
+      if (valueStart >= content.length()) return "";
+
+      // Check if it's a string value (quoted)
+      if (content[valueStart] == '"') {
+        valueStart++;  // Skip opening quote
+        size_t valueEnd = content.find("\"", valueStart);
+        if (valueEnd == std::string::npos) return "";
+        return content.substr(valueStart, valueEnd - valueStart);
+      } else {
+        // It's a numeric value
+        size_t valueEnd = valueStart;
+        while (valueEnd < content.length() && content[valueEnd] != ',' &&
+               content[valueEnd] != '}' && content[valueEnd] != '\n' &&
+               content[valueEnd] != '\r' && content[valueEnd] != ' ' &&
+               content[valueEnd] != '\t') {
+          valueEnd++;
         }
-      } else if (line.find("\"lastCassette\"") != std::string::npos) {
-        size_t pos = line.find(":") + 1;
-        if (pos != std::string::npos) {
-          cameraState.lastCassette = line.substr(pos + 1);
-          // Remove quotes
-          if (cameraState.lastCassette.length() >= 2) {
-            cameraState.lastCassette = cameraState.lastCassette.substr(
-                1, cameraState.lastCassette.length() - 2);
-          }
-        }
-      } else if (line.find("\"lastDate\"") != std::string::npos) {
-        size_t pos = line.find(":") + 1;
-        if (pos != std::string::npos) {
-          cameraState.lastDate = line.substr(pos + 1);
-          // Remove quotes
-          if (cameraState.lastDate.length() >= 2) {
-            cameraState.lastDate = cameraState.lastDate.substr(
-                1, cameraState.lastDate.length() - 2);
-          }
-        }
+        return content.substr(valueStart, valueEnd - valueStart);
+      }
+    };
+
+    // Extract values
+    std::string seqStr = extractJsonValue("sequenceNumber");
+    if (!seqStr.empty()) {
+      try {
+        cameraState.sequenceNumber = std::stoi(seqStr);
+      } catch (const std::exception& e) {
+        std::cout << "Invalid sequenceNumber value: " << seqStr << std::endl;
+        cameraState.sequenceNumber = 1;
       }
     }
-    file.close();
+
+    cameraState.lastCassette = extractJsonValue("lastCassette");
+    cameraState.lastDate = extractJsonValue("lastDate");
+
     std::cout << "Loaded camera state, sequence: " << cameraState.sequenceNumber
-              << std::endl;
-  } else {
-    std::cout << "No camera state file found, using defaults" << std::endl;
+              << ", cassette: '" << cameraState.lastCassette << "', date: '"
+              << cameraState.lastDate << "'" << std::endl;
+  } catch (const std::exception& e) {
+    std::cout << "Error parsing camera state file: " << e.what() << std::endl;
+    std::cout << "Using defaults and recreating file" << std::endl;
+    cameraState = CameraState{};
+    saveCameraState();
   }
 }
 
 void CameraManager::saveCameraState() {
   const char* home = std::getenv("HOME");
-  if (!home) return;
+  if (!home) {
+    std::cout << "Cannot save camera state: HOME environment variable not found"
+              << std::endl;
+    return;
+  }
 
   std::string cacheDir = std::string(home) + "/.cache/cocoscanner";
-  std::filesystem::create_directories(cacheDir);
+  std::error_code ec;
+  std::filesystem::create_directories(cacheDir, ec);
+  if (ec) {
+    std::cout << "Failed to create cache directory for saving state: "
+              << ec.message() << std::endl;
+    return;
+  }
 
   std::string stateFile = cacheDir + "/camera_state.json";
   std::ofstream file(stateFile);
 
-  if (file.is_open()) {
+  if (!file.is_open()) {
+    std::cout << "Failed to open camera state file for writing: " << stateFile
+              << std::endl;
+    return;
+  }
+
+  try {
+    // Properly escape JSON strings to handle quotes and special characters
+    auto escapeJsonString = [](const std::string& input) -> std::string {
+      std::string escaped;
+      for (char c : input) {
+        switch (c) {
+          case '"':
+            escaped += "\\\"";
+            break;
+          case '\\':
+            escaped += "\\\\";
+            break;
+          case '\b':
+            escaped += "\\b";
+            break;
+          case '\f':
+            escaped += "\\f";
+            break;
+          case '\n':
+            escaped += "\\n";
+            break;
+          case '\r':
+            escaped += "\\r";
+            break;
+          case '\t':
+            escaped += "\\t";
+            break;
+          default:
+            escaped += c;
+            break;
+        }
+      }
+      return escaped;
+    };
+
     file << "{\n";
     file << "  \"sequenceNumber\": " << cameraState.sequenceNumber << ",\n";
-    file << "  \"lastCassette\": \"" << cameraState.lastCassette << "\",\n";
-    file << "  \"lastDate\": \"" << cameraState.lastDate << "\"\n";
+    file << "  \"lastCassette\": \""
+         << escapeJsonString(cameraState.lastCassette) << "\",\n";
+    file << "  \"lastDate\": \"" << escapeJsonString(cameraState.lastDate)
+         << "\"\n";
     file << "}\n";
+
     file.close();
-    std::cout << "Saved camera state" << std::endl;
+
+    // Verify the file was written correctly
+    if (std::filesystem::exists(stateFile) &&
+        std::filesystem::file_size(stateFile) > 0) {
+      std::cout << "Saved camera state to " << stateFile << std::endl;
+    } else {
+      std::cout
+          << "Warning: Camera state file may not have been written correctly"
+          << std::endl;
+    }
+  } catch (const std::exception& e) {
+    std::cout << "Error saving camera state: " << e.what() << std::endl;
+    file.close();
+  }
+}
+
+void CameraManager::setCassette(const std::string& cassette) {
+  if (cameraState.lastCassette != cassette) {
+    cameraState.lastCassette = cassette;
+    saveCameraState();
+    std::cout << "Updated cassette to: " << cassette << std::endl;
+  }
+}
+
+void CameraManager::setCurrentDate() {
+  auto now = std::time(nullptr);
+  auto tm = *std::localtime(&now);
+  std::ostringstream dateStream;
+  dateStream << std::put_time(&tm, "%Y-%m-%d");
+  std::string newDate = dateStream.str();
+
+  if (cameraState.lastDate != newDate) {
+    cameraState.lastDate = newDate;
+    saveCameraState();
+    std::cout << "Updated date to: " << newDate << std::endl;
   }
 }
 
