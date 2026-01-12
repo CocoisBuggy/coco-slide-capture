@@ -10,7 +10,8 @@
 namespace ExifWriter {
 
 bool writeCommentAndDate(const std::string& imagePath,
-                         const std::string& comment, int star_rating) {
+                         const std::string& comment, int star_rating,
+                         const std::string& context_date) {
   try {
     // Load the image
     Exiv2::Image::UniquePtr image = Exiv2::ImageFactory::open(imagePath);
@@ -23,20 +24,31 @@ bool writeCommentAndDate(const std::string& imagePath,
     image->readMetadata();
     Exiv2::ExifData& exifData = image->exifData();
 
-    // Add current date to DateTimeOriginal if not present
+    // Add date to DateTimeOriginal and DateTime fields
     auto dateTimeOrig =
         exifData.findKey(Exiv2::ExifKey("Exif.Photo.DateTimeOriginal"));
     auto dateTime = exifData.findKey(Exiv2::ExifKey("Exif.Image.DateTime"));
 
-    if (dateTimeOrig == exifData.end() && dateTime == exifData.end()) {
+    std::string dateToUse;
+    if (!context_date.empty()) {
+      // Use context date if provided (format: YYYY-MM-DD)
+      dateToUse = context_date + " 12:00:00";  // Use noon as default time
+    } else {
+      // Use current date if no context date provided
       auto now = std::chrono::system_clock::now();
       auto time_t = std::chrono::system_clock::to_time_t(now);
       std::tm tm = *std::localtime(&time_t);
-
       std::ostringstream dateStream;
       dateStream << std::put_time(&tm, "%Y:%m:%d %H:%M:%S");
+      dateToUse = dateStream.str();
+    }
 
-      exifData["Exif.Image.DateTime"] = dateStream.str();
+    // Set both DateTimeOriginal and DateTime to ensure consistency
+    if (dateTimeOrig == exifData.end()) {
+      exifData["Exif.Photo.DateTimeOriginal"] = dateToUse;
+    }
+    if (dateTime == exifData.end()) {
+      exifData["Exif.Image.DateTime"] = dateToUse;
     }
 
     // Add comment to ImageDescription

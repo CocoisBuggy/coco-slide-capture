@@ -6,6 +6,7 @@
 namespace ExifWriter {
 
 bool writeCommentAndDate(const std::string& imagePath,
-                         const std::string& comment, int star_rating = 0);
+                         const std::string& comment, int star_rating = 0,
+                         const std::string& context_date = "");
 
 }  // namespace ExifWriter

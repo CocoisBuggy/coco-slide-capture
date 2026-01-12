@@ -18,7 +18,8 @@ gboolean InputHandler::on_key_press(GtkEventControllerKey *controller,
       self->photo_comment = comment_text ? std::string(comment_text) : "";
 
       self->camMgr->capture(self->active_directory, self->photo_comment,
-                            self->star_rating, self->renderer);
+                            self->star_rating, self->context_date,
+                            self->renderer);
 
       // Reset comment field and star rating after capture
       gtk_editable_set_text(GTK_EDITABLE(self->comment_entry), "");
