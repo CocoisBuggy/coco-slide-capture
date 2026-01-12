@@ -11,4 +11,6 @@ class InputHandler {
                                gpointer user_data);
 
   static void update_star_display(GtkWidget *label, int rating);
+  static void show_error_dialog(GtkWidget *parent, const char *title,
+                                const char *message);
 };

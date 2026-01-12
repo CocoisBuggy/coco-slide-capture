@@ -9,7 +9,7 @@ gboolean InputHandler::on_key_press(GtkEventControllerKey *controller,
                                     guint keyval, guint keycode,
                                     GdkModifierType state, gpointer user_data) {
   MainWindow *self = static_cast<MainWindow *>(user_data);
-  if (keyval == GDK_KEY_space) {
+  if (keyval == GDK_KEY_space && (state & GDK_CONTROL_MASK)) {
     std::cout << "Spacebar pressed: Trigger capture" << std::endl;
     if (self->camMgr && !self->active_directory.empty()) {
       // Get comment from entry field
@@ -28,6 +28,15 @@ gboolean InputHandler::on_key_press(GtkEventControllerKey *controller,
     } else {
       std::cout << "Camera not connected or no active directory set"
                 << std::endl;
+
+      if (!self->camMgr) {
+        show_error_dialog(self->window, "Camera not connected",
+                          "Please connect a camera before taking photos.");
+      } else if (self->active_directory.empty()) {
+        show_error_dialog(
+            self->window, "No active directory set",
+            "Please set an active directory before taking photos.");
+      }
     }
     return TRUE;
   } else if (keyval == GDK_KEY_n && (state & GDK_CONTROL_MASK)) {
@@ -49,6 +58,18 @@ gboolean InputHandler::on_key_press(GtkEventControllerKey *controller,
     return TRUE;
   }
   return FALSE;
+}
+
+void InputHandler::show_error_dialog(GtkWidget *parent, const char *title,
+                                     const char *message) {
+  GtkAlertDialog *dialog = gtk_alert_dialog_new("%s", title);
+  gtk_alert_dialog_set_detail(dialog, message);
+
+  const char *buttons[] = {"OK", NULL};
+  gtk_alert_dialog_set_buttons(dialog, buttons);
+
+  gtk_alert_dialog_show(dialog, GTK_WINDOW(parent));
+  g_object_unref(dialog);
 }
 
 void InputHandler::update_star_display(GtkWidget *star_widget, int rating) {
