@@ -32,6 +32,9 @@ void LiveViewRenderer::stop() {
 
 void LiveViewRenderer::liveViewLoop() {
   while (running) {
+    // Process SDK events (critical for receiving object events!)
+    EdsGetEvent();
+
     EdsStreamRef stream = NULL;
     EdsEvfImageRef evfImage = NULL;
     EdsError err = EdsCreateMemoryStream(0, &stream);

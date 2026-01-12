@@ -61,16 +61,17 @@ bool CameraManager::connectCamera() {
     return false;
   }
 
-  // Set object event handler for downloading images
-  err = EdsSetObjectEventHandler(camera, kEdsObjectEvent_DirItemCreated,
+  // Set object event handler for downloading images (catch all events to ensure
+  // we get transfer requests)
+  err = EdsSetObjectEventHandler(camera, kEdsObjectEvent_All,
                                  objectEventHandler, this);
   if (err != EDS_ERR_OK) {
     std::cout << "Failed to set object event handler: " << err << std::endl;
     // Not critical, continue
   }
 
-  // Set save to both (card and host)
-  EdsUInt32 saveTo = kEdsSaveTo_Both;
+  // Set save to host initially (like sample code)
+  EdsUInt32 saveTo = kEdsSaveTo_Host;
   err = EdsSetPropertyData(camera, kEdsPropID_SaveTo, 0, sizeof(EdsUInt32),
                            &saveTo);
   if (err != EDS_ERR_OK) {
@@ -140,6 +141,9 @@ bool CameraManager::capture(const std::string& directory) {
     std::filesystem::create_directories(directory);
   }
 
+  // Set capacity for host transfers (important when saving to host)
+  setCapacityForHost();
+
   // Check save destination
   EdsUInt32 saveTo;
   EdsError err = EdsGetPropertyData(camera, kEdsPropID_SaveTo, 0,
@@ -158,57 +162,15 @@ bool CameraManager::capture(const std::string& directory) {
     return false;
   }
 
-  // Enter direct transfer mode for host save
-  err = EdsSendStatusCommand(camera,
-                             kEdsCameraStatusCommand_EnterDirectTransfer, 0);
-  if (err != EDS_ERR_OK) {
-    std::cout << "Release shutter failed: " << err << std::endl;
-    EdsSendStatusCommand(camera, kEdsCameraStatusCommand_ExitDirectTransfer, 0);
-    EdsSendStatusCommand(camera, kEdsCameraStatusCommand_UIUnLock, 0);
-    return false;
-  }
-
-  // Enter direct transfer mode
-  err = EdsSendStatusCommand(camera,
-                             kEdsCameraStatusCommand_EnterDirectTransfer, 0);
-  if (err != EDS_ERR_OK) {
-    std::cout << "Failed to enter direct transfer: " << err << std::endl;
-    return false;
-  }
-
-  // Half press for auto focus and auto expose
+  // Use single command approach like sample code (without AF to avoid
+  // complexity)
   err = EdsSendCommand(camera, kEdsCameraCommand_PressShutterButton,
-                       kEdsCameraCommand_ShutterButton_Halfway);
+                       kEdsCameraCommand_ShutterButton_Completely_NonAF);
   if (err != EDS_ERR_OK) {
-    std::cout << "Half press failed: " << err << std::endl;
-    return false;
-  }
-
-  // Wait a bit for AF/AE
-  std::this_thread::sleep_for(std::chrono::milliseconds(500));
-
-  // Full press to take photo
-  err = EdsSendCommand(camera, kEdsCameraCommand_PressShutterButton,
-                       kEdsCameraCommand_ShutterButton_Completely);
-  if (err != EDS_ERR_OK) {
-    std::cout << "Full press failed: " << err << std::endl;
-    return false;
-  }
-
-  // Release shutter
-  err = EdsSendCommand(camera, kEdsCameraCommand_PressShutterButton,
-                       kEdsCameraCommand_ShutterButton_OFF);
-  if (err != EDS_ERR_OK) {
-    std::cout << "Release shutter failed: " << err << std::endl;
-    startLiveView();  // Try to restart live view
-    return false;
-  }
-
-  // Exit direct transfer mode
-  err = EdsSendStatusCommand(camera, kEdsCameraStatusCommand_ExitDirectTransfer,
-                             0);
-  if (err != EDS_ERR_OK) {
-    std::cout << "Failed to exit direct transfer: " << err << std::endl;
+    std::cout << "Capture command failed: " << err << std::endl;
+    if (err == EDS_ERR_DEVICE_BUSY) {
+      std::cout << "Device is busy, please wait and try again" << std::endl;
+    }
   }
 
   // Unlock UI
@@ -222,17 +184,31 @@ bool CameraManager::capture(const std::string& directory) {
     std::cout << "Failed to restart live view" << std::endl;
   }
 
-  std::cout << "Capture initiated" << std::endl;
+  std::cout << "Capture initiated, waiting for download..." << std::endl;
   return true;
 }
 
 EdsError EDSCALLBACK CameraManager::objectEventHandler(EdsObjectEvent event,
                                                        EdsBaseRef object,
                                                        EdsVoid* context) {
-  if (event == kEdsObjectEvent_DirItemCreated) {
-    CameraManager* self = static_cast<CameraManager*>(context);
-    self->downloadImage(object);
+  CameraManager* self = static_cast<CameraManager*>(context);
+
+  switch (event) {
+    case kEdsObjectEvent_DirItemRequestTransfer:
+      std::cout << "DirItemRequestTransfer event received" << std::endl;
+      self->downloadImage(object);
+      break;
+    case kEdsObjectEvent_DirItemCreated:
+      std::cout << "DirItemCreated event received" << std::endl;
+      self->downloadImage(object);
+      break;
+    default:
+      std::cout << "Other object event: " << event << std::endl;
+      // Don't release object for unknown events
+      return EDS_ERR_OK;
   }
+
+  // Note: object is released in downloadImage method
   return EDS_ERR_OK;
 }
 
@@ -245,10 +221,12 @@ void CameraManager::downloadImage(EdsBaseRef object) {
     return;
   }
 
-  // Generate filename with timestamp
-  std::time_t now = std::time(nullptr);
-  std::string filename = std::to_string(now) + ".CR2";
+  // Use the actual filename from the camera
+  std::string filename = dirItemInfo.szFileName;
   std::string filepath = captureDirectory + "/" + filename;
+
+  std::cout << "Downloading " << filename << " (" << dirItemInfo.size
+            << " bytes)" << std::endl;
 
   // Create file stream
   EdsStreamRef stream;
@@ -266,10 +244,25 @@ void CameraManager::downloadImage(EdsBaseRef object) {
   if (err != EDS_ERR_OK) {
     std::cout << "Failed to download: " << err << std::endl;
   } else {
-    std::cout << "Downloaded to " << filepath << std::endl;
+    std::cout << "Successfully downloaded to " << filepath << std::endl;
   }
 
+  // Mark download as complete
   EdsDownloadComplete(object);
+
+  // Release resources
   EdsRelease(stream);
   EdsRelease(object);
+}
+
+void CameraManager::setCapacityForHost() {
+  // Set capacity for host transfers (important when saving to host or both)
+  EdsCapacity capacity = {0x7FFFFFFF, 0x1000,
+                          1};  // Max capacity, 4KB free space, 1 shot
+  EdsError err = EdsSetCapacity(camera, capacity);
+  if (err != EDS_ERR_OK) {
+    std::cout << "Failed to set capacity: " << err << std::endl;
+  } else {
+    std::cout << "Capacity set for host transfers" << std::endl;
+  }
 }
