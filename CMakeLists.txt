@@ -29,12 +29,20 @@ set(SOURCES
     src/camera/CameraManager.cpp
     src/camera/LiveViewRenderer.cpp
     src/ui/MainWindow.cpp
+    src/ui/LiveViewDrawer.cpp
+    src/ui/InputHandler.cpp
+    src/ui/BatchDialog.cpp
+    src/ui/UIBuilder.cpp
 )
 
 set(HEADERS
     include/camera/CameraManager.h
     include/camera/LiveViewRenderer.h
     include/ui/MainWindow.h
+    src/ui/LiveViewDrawer.h
+    src/ui/InputHandler.h
+    src/ui/BatchDialog.h
+    src/ui/UIBuilder.h
 )
 
 # Create executable
