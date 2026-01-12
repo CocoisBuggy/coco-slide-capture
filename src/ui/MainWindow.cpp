@@ -177,8 +177,7 @@ void MainWindow::on_dialog_ok(GtkButton *button, gpointer user_data) {
       g_date_time_unref(date);
     }
 
-    data->self->active_directory =
-        data->self->batch_name + "/" + data->self->context_date;
+    data->self->active_directory = data->self->batch_name;
     char *batch_text = g_strdup_printf("Current Batch: <b>%s</b>",
                                        data->self->batch_name.c_str());
     gtk_label_set_markup(GTK_LABEL(data->self->batch_display_label),
@@ -218,8 +217,7 @@ void MainWindow::on_entry_activate(GtkEntry *entry, gpointer user_data) {
     gtk_label_set_markup(GTK_LABEL(data->self->date_display_label), label_text);
     g_free(label_text);
 
-    data->self->active_directory =
-        data->self->batch_name + "/" + data->self->context_date;
+    data->self->active_directory = data->self->batch_name;
     char *batch_text = g_strdup_printf("Current Batch: <b>%s</b>",
                                        data->self->batch_name.c_str());
     gtk_label_set_markup(GTK_LABEL(data->self->batch_display_label),

@@ -1,6 +1,7 @@
 #include "camera/CameraManager.h"
 
 #include <chrono>
+#include <cstdlib>
 #include <ctime>
 #include <filesystem>
 #include <iostream>
@@ -134,12 +135,27 @@ EdsError CameraManager::downloadLiveViewImage(EdsStreamRef* stream) {
 
 bool CameraManager::capture(const std::string& directory) {
   if (!camera) return false;
-  captureDirectory = directory;
 
-  // Ensure directory exists
-  if (!std::filesystem::exists(directory)) {
-    std::filesystem::create_directories(directory);
+  // Build full path to ~/Pictures/<directory>
+  const char* home = std::getenv("HOME");
+  if (!home) {
+    std::cout << "Could not get HOME directory" << std::endl;
+    return false;
   }
+
+  std::string picturesPath = std::string(home) + "/Pictures";
+  captureDirectory = picturesPath + "/" + directory;
+
+  // Ensure directories exist
+  if (!std::filesystem::exists(picturesPath)) {
+    std::filesystem::create_directories(picturesPath);
+  }
+  if (!std::filesystem::exists(captureDirectory)) {
+    std::filesystem::create_directories(captureDirectory);
+  }
+
+  // Add a small delay to prevent rapid capture attempts
+  std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
   // Set capacity for host transfers (important when saving to host)
   setCapacityForHost();
@@ -159,6 +175,12 @@ bool CameraManager::capture(const std::string& directory) {
   err = EdsSendStatusCommand(camera, kEdsCameraStatusCommand_UILock, 0);
   if (err != EDS_ERR_OK) {
     std::cout << "Failed to lock UI: " << err << std::endl;
+    if (err == 8217) {
+      std::cout << "Camera appears busy (8217). Please wait a moment before "
+                   "next capture."
+                << std::endl;
+      return false;
+    }
     return false;
   }
 
@@ -166,25 +188,53 @@ bool CameraManager::capture(const std::string& directory) {
   // complexity)
   err = EdsSendCommand(camera, kEdsCameraCommand_PressShutterButton,
                        kEdsCameraCommand_ShutterButton_Completely_NonAF);
+
+  // Always release shutter button (like sample code, critical for proper camera
+  // state)
+  EdsError releaseErr =
+      EdsSendCommand(camera, kEdsCameraCommand_PressShutterButton,
+                     kEdsCameraCommand_ShutterButton_OFF);
+
   if (err != EDS_ERR_OK) {
     std::cout << "Capture command failed: " << err << std::endl;
     if (err == EDS_ERR_DEVICE_BUSY) {
       std::cout << "Device is busy, please wait and try again" << std::endl;
     }
+  } else {
+    std::cout << "Capture command sent successfully" << std::endl;
+    if (releaseErr != EDS_ERR_OK) {
+      std::cout << "Shutter release failed: " << releaseErr << std::endl;
+    }
   }
 
-  // Unlock UI
-  err = EdsSendStatusCommand(camera, kEdsCameraStatusCommand_UIUnLock, 0);
-  if (err != EDS_ERR_OK) {
-    std::cout << "Failed to unlock UI: " << err << std::endl;
+  // Unlock UI (always attempt this, critical for recovery)
+  EdsError unlockErr =
+      EdsSendStatusCommand(camera, kEdsCameraStatusCommand_UIUnLock, 0);
+  if (unlockErr != EDS_ERR_OK) {
+    std::cout << "Failed to unlock UI: " << unlockErr << std::endl;
+  } else {
+    std::cout << "UI unlocked successfully" << std::endl;
   }
 
-  // Restart live view
+  // Restart live view (important for consistent camera state)
   if (!startLiveView()) {
     std::cout << "Failed to restart live view" << std::endl;
+  } else {
+    std::cout << "Live view restarted successfully" << std::endl;
   }
 
-  std::cout << "Capture initiated, waiting for download..." << std::endl;
+  std::cout << "Capture initiated, waiting for download to " << captureDirectory
+            << "..." << std::endl;
+
+  // Wait a moment for download to complete (max 5 seconds)
+  int waitCount = 0;
+  while (waitCount < 50) {  // 50 * 100ms = 5 seconds
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    // Process events to check for download completion
+    EdsGetEvent();
+    waitCount++;
+  }
+
   return true;
 }
 
