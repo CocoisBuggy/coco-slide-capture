@@ -7,6 +7,9 @@
 #include <fstream>
 #include <string>
 
+// Forward declaration
+class LiveViewRenderer;
+
 // Persistent camera state data structure
 struct CameraState {
   int sequenceNumber = 1;
@@ -26,7 +29,8 @@ class CameraManager {
   bool startLiveView();
   bool stopLiveView();
   EdsError downloadLiveViewImage(EdsStreamRef* stream);
-  bool capture(const std::string& directory);
+  bool capture(const std::string& directory,
+               LiveViewRenderer* renderer = nullptr);
   void disconnectCamera();
 
  private:

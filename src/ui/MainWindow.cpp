@@ -59,7 +59,7 @@ gboolean MainWindow::on_key_press(GtkEventControllerKey *controller,
   if (keyval == GDK_KEY_space) {
     std::cout << "Spacebar pressed: Trigger capture" << std::endl;
     if (self->camMgr && !self->active_directory.empty()) {
-      self->camMgr->capture(self->active_directory);
+      self->camMgr->capture(self->active_directory, self->renderer);
     } else {
       std::cout << "Camera not connected or no active directory set"
                 << std::endl;

@@ -9,6 +9,8 @@
 #include <sstream>
 #include <thread>
 
+#include "camera/LiveViewRenderer.h"
+
 CameraManager::CameraManager()
     : camera(NULL), isInitialized(false), captureDirectory("") {
   // Load camera state from cache (persistent between runs)
@@ -172,13 +174,20 @@ EdsError CameraManager::downloadLiveViewImage(EdsStreamRef* stream) {
   // But for now, placeholder
 }
 
-bool CameraManager::capture(const std::string& directory) {
+bool CameraManager::capture(const std::string& directory,
+                            LiveViewRenderer* renderer) {
   if (!camera) return false;
+
+  // Pause live view renderer to prevent conflicts
+  if (renderer) {
+    renderer->pauseForCapture();
+  }
 
   // Build full path to ~/Pictures/<directory>
   const char* home = std::getenv("HOME");
   if (!home) {
     std::cout << "Could not get HOME directory" << std::endl;
+    if (renderer) renderer->resumeAfterCapture();
     return false;
   }
 
@@ -231,8 +240,10 @@ bool CameraManager::capture(const std::string& directory) {
       std::cout << "Camera appears busy (8217). Please wait a moment before "
                    "next capture."
                 << std::endl;
+      if (renderer) renderer->resumeAfterCapture();
       return false;
     }
+    if (renderer) renderer->resumeAfterCapture();
     return false;
   }
 
@@ -278,13 +289,24 @@ bool CameraManager::capture(const std::string& directory) {
   std::cout << "Capture initiated, waiting for download to " << captureDirectory
             << "..." << std::endl;
 
-  // Wait a moment for download to complete (max 5 seconds)
+  // Wait a moment for download to complete with better timeout handling
   int waitCount = 0;
-  while (waitCount < 50) {  // 50 * 100ms = 5 seconds
+  int maxWaitCount = 50;  // 5 seconds max
+  while (waitCount < maxWaitCount) {
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     // Process events to check for download completion
     EdsGetEvent();
     waitCount++;
+
+    // Add yield to prevent blocking
+    if (waitCount % 10 == 0) {  // Every second
+      std::this_thread::yield();
+    }
+  }
+
+  // Resume live view renderer after capture is complete
+  if (renderer) {
+    renderer->resumeAfterCapture();
   }
 
   return true;

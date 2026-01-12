@@ -2,28 +2,39 @@
 #define LIVEVIEWRENDERER_H
 
 #include <gtk/gtk.h>
-#include <thread>
+
 #include <atomic>
+#include <mutex>
+#include <thread>
+
 #include "CameraManager.h"
 
 class LiveViewRenderer {
-public:
-    LiveViewRenderer(GtkWidget* drawingArea, CameraManager* camMgr);
-    ~LiveViewRenderer();
+ public:
+  LiveViewRenderer(GtkWidget* drawingArea, CameraManager* camMgr);
+  ~LiveViewRenderer();
 
-    void start();
-    void stop();
-    GdkPixbuf* getCurrentImage() const { return currentImage; }
+  void start();
+  void stop();
+  GdkPixbuf* getCurrentImage() const;
 
-private:
-    GtkWidget* area;
-    CameraManager* cameraMgr;
-    std::thread liveThread;
-    std::atomic<bool> running;
-    GdkPixbuf* currentImage;
+  // Called by CameraManager during capture to prevent conflicts
+  void pauseForCapture();
+  void resumeAfterCapture();
 
-    void liveViewLoop();
-    static gboolean updateImage(gpointer data);
+ private:
+  GtkWidget* area;
+  CameraManager* cameraMgr;
+  std::thread liveThread;
+  std::atomic<bool> running;
+  std::atomic<bool> paused;
+  GdkPixbuf* currentImage;
+  mutable std::mutex imageMutex;
+
+  void liveViewLoop();
+  static gboolean updateImage(gpointer data);
+  bool downloadLiveViewImage();
+  void updateCurrentImage(GdkPixbuf* newImage);
 };
 
-#endif // LIVEVIEWRENDERER_H
+#endif  // LIVEVIEWRENDERER_H
