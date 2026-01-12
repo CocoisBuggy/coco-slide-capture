@@ -59,7 +59,17 @@ gboolean MainWindow::on_key_press(GtkEventControllerKey *controller,
   if (keyval == GDK_KEY_space) {
     std::cout << "Spacebar pressed: Trigger capture" << std::endl;
     if (self->camMgr && !self->active_directory.empty()) {
-      self->camMgr->capture(self->active_directory, self->renderer);
+      // Get comment from entry field
+      const char *comment_text =
+          gtk_editable_get_text(GTK_EDITABLE(self->comment_entry));
+      self->photo_comment = comment_text ? std::string(comment_text) : "";
+
+      self->camMgr->capture(self->active_directory, self->photo_comment,
+                            self->renderer);
+
+      // Reset comment field after capture
+      gtk_editable_set_text(GTK_EDITABLE(self->comment_entry), "");
+      self->photo_comment = "";
     } else {
       std::cout << "Camera not connected or no active directory set"
                 << std::endl;
@@ -313,6 +323,13 @@ MainWindow::MainWindow(GtkApplication *app)
   g_signal_connect(calendar, "day-selected", G_CALLBACK(on_date_selected),
                    this);
   gtk_box_append(GTK_BOX(controls), set_date_button);
+
+  // Photo comment field
+  GtkWidget *comment_label = gtk_label_new("Comment:");
+  comment_entry = gtk_entry_new();
+  gtk_widget_set_hexpand(comment_entry, TRUE);
+  gtk_box_append(GTK_BOX(controls), comment_label);
+  gtk_box_append(GTK_BOX(controls), comment_entry);
 
   // Key controller for spacebar
   GtkEventController *key_controller = gtk_event_controller_key_new();

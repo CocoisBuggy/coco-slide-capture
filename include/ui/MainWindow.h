@@ -32,11 +32,13 @@ class MainWindow {
   GtkWidget *set_date_button;
   GtkWidget *popover;
   GtkWidget *calendar;
+  GtkWidget *comment_entry;
 
   // State
   std::string active_directory;
   std::string context_date;
   std::string batch_name;
+  std::string photo_comment;
 
   // Camera
   CameraManager *camMgr;

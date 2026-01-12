@@ -29,7 +29,7 @@ class CameraManager {
   bool startLiveView();
   bool stopLiveView();
   EdsError downloadLiveViewImage(EdsStreamRef* stream);
-  bool capture(const std::string& directory,
+  bool capture(const std::string& directory, const std::string& comment = "",
                LiveViewRenderer* renderer = nullptr);
   void disconnectCamera();
 
@@ -40,6 +40,9 @@ class CameraManager {
 
   // Persistent camera state
   CameraState cameraState;
+
+  // Current photo comment
+  std::string currentComment;
 
   // Global sequence number for unique filenames
   static int globalSequenceNumber;

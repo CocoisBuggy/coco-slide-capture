@@ -175,8 +175,12 @@ EdsError CameraManager::downloadLiveViewImage(EdsStreamRef* stream) {
 }
 
 bool CameraManager::capture(const std::string& directory,
+                            const std::string& comment,
                             LiveViewRenderer* renderer) {
   if (!camera) return false;
+
+  // Store the current comment for this photo
+  currentComment = comment;
 
   // Pause live view renderer to prevent conflicts
   if (renderer) {
@@ -393,6 +397,19 @@ void CameraManager::downloadImage(EdsBaseRef object) {
     std::cout << "Failed to download: " << err << std::endl;
   } else {
     std::cout << "Successfully downloaded to " << filepath << std::endl;
+
+    // Save comment to metadata file if comment is not empty
+    if (!currentComment.empty()) {
+      std::string metadataPath = filepath + ".comment";
+      std::ofstream metadataFile(metadataPath);
+      if (metadataFile.is_open()) {
+        metadataFile << currentComment;
+        metadataFile.close();
+        std::cout << "Comment saved to " << metadataPath << std::endl;
+      } else {
+        std::cout << "Failed to save comment to " << metadataPath << std::endl;
+      }
+    }
   }
 
   // Mark download as complete
