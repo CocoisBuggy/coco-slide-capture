@@ -8,15 +8,52 @@
 #include <thread>
 
 CameraManager::CameraManager()
-    : camera(NULL), isInitialized(false), captureDirectory("") {}
+    : camera(NULL), isInitialized(false), captureDirectory("") {
+  // Load camera state from cache (persistent between runs)
+  loadCameraState();
+}
+
+// Define static member
+int CameraManager::globalSequenceNumber = 1;
 
 CameraManager::~CameraManager() {
+  // Stop live view if it's running
+  stopLiveView();
+
+  // Close camera session if open
   if (camera) {
+    // Clear object event handler before closing session (like sample code)
+    EdsError err =
+        EdsSetObjectEventHandler(camera, kEdsObjectEvent_All, NULL, NULL);
+    if (err != EDS_ERR_OK) {
+      std::cout << "Failed to clear object event handler: " << err << std::endl;
+    }
+
+    err = EdsCloseSession(camera);
+    if (err != EDS_ERR_OK) {
+      std::cout << "Failed to close camera session: " << err << std::endl;
+    } else {
+      std::cout << "Camera session closed successfully" << std::endl;
+    }
+
+    // Release camera reference
     EdsRelease(camera);
+    camera = NULL;
   }
+
+  // Terminate SDK if it was initialized
   if (isInitialized) {
-    EdsTerminateSDK();
+    EdsError err = EdsTerminateSDK();
+    if (err != EDS_ERR_OK) {
+      std::cout << "Failed to terminate SDK: " << err << std::endl;
+    } else {
+      std::cout << "EDSDK terminated successfully" << std::endl;
+    }
+    isInitialized = false;
   }
+
+  // Save camera state for next run
+  saveCameraState();
 }
 
 bool CameraManager::initialize() {
@@ -238,6 +275,29 @@ bool CameraManager::capture(const std::string& directory) {
   return true;
 }
 
+void CameraManager::disconnectCamera() {
+  // Stop live view if running
+  stopLiveView();
+
+  if (camera) {
+    // Clear object event handler
+    EdsSetObjectEventHandler(camera, kEdsObjectEvent_All, NULL, NULL);
+
+    // Close session
+    EdsError err = EdsCloseSession(camera);
+    if (err != EDS_ERR_OK) {
+      std::cout << "Failed to close session during disconnect: " << err
+                << std::endl;
+    }
+
+    // Release camera
+    EdsRelease(camera);
+    camera = NULL;
+
+    std::cout << "Camera disconnected successfully" << std::endl;
+  }
+}
+
 EdsError EDSCALLBACK CameraManager::objectEventHandler(EdsObjectEvent event,
                                                        EdsBaseRef object,
                                                        EdsVoid* context) {
@@ -271,8 +331,9 @@ void CameraManager::downloadImage(EdsBaseRef object) {
     return;
   }
 
-  // Use the actual filename from the camera
-  std::string filename = dirItemInfo.szFileName;
+  // Generate unique filename to prevent overwriting
+  std::string originalFilename = dirItemInfo.szFileName;
+  std::string filename = generateUniqueFilename(originalFilename);
   std::string filepath = captureDirectory + "/" + filename;
 
   std::cout << "Downloading " << filename << " (" << dirItemInfo.size
@@ -315,4 +376,112 @@ void CameraManager::setCapacityForHost() {
   } else {
     std::cout << "Capacity set for host transfers" << std::endl;
   }
+}
+
+std::string CameraManager::generateUniqueFilename(
+    const std::string& originalFilename) {
+  // Try to use camera filename first (already has sequence number)
+  std::string filepath = captureDirectory + "/" + originalFilename;
+  // If file doesn't exist, use original
+  if (!std::filesystem::exists(filepath)) {
+    std::cout << "Using camera filename: " << originalFilename << std::endl;
+    return originalFilename;
+  }
+
+  // If file exists, add sequence number
+  std::string extension =
+      originalFilename.substr(originalFilename.find_last_of('.'));
+  std::string basename =
+      originalFilename.substr(0, originalFilename.find_last_of('.'));
+
+  int sequence = cameraState.sequenceNumber;
+  std::string newFilename;
+  do {
+    newFilename = basename + "_" + std::to_string(sequence) + extension;
+    filepath = captureDirectory + "/" + newFilename;
+    sequence++;
+  } while (std::filesystem::exists(filepath));
+
+  // Update global sequence for next time
+  cameraState.sequenceNumber = sequence;
+  std::cout << "File exists, using: " << newFilename << std::endl;
+  return newFilename;
+}
+
+void CameraManager::loadCameraState() {
+  const char* home = std::getenv("HOME");
+  if (!home) return;
+
+  std::string cacheDir = std::string(home) + "/.cache/cocoscanner";
+  std::filesystem::create_directories(cacheDir);
+
+  std::string stateFile = cacheDir + "/camera_state.json";
+  std::ifstream file(stateFile);
+
+  if (file.is_open()) {
+    // Simple JSON parsing for our state
+    std::string line;
+    while (std::getline(file, line)) {
+      if (line.find("\"sequenceNumber\"") != std::string::npos) {
+        size_t pos = line.find(":") + 1;
+        if (pos != std::string::npos) {
+          cameraState.sequenceNumber = std::stoi(line.substr(pos));
+        }
+      } else if (line.find("\"lastCassette\"") != std::string::npos) {
+        size_t pos = line.find(":") + 1;
+        if (pos != std::string::npos) {
+          cameraState.lastCassette = line.substr(pos + 1);
+          // Remove quotes
+          if (cameraState.lastCassette.length() >= 2) {
+            cameraState.lastCassette = cameraState.lastCassette.substr(
+                1, cameraState.lastCassette.length() - 2);
+          }
+        }
+      } else if (line.find("\"lastDate\"") != std::string::npos) {
+        size_t pos = line.find(":") + 1;
+        if (pos != std::string::npos) {
+          cameraState.lastDate = line.substr(pos + 1);
+          // Remove quotes
+          if (cameraState.lastDate.length() >= 2) {
+            cameraState.lastDate = cameraState.lastDate.substr(
+                1, cameraState.lastDate.length() - 2);
+          }
+        }
+      }
+    }
+    file.close();
+    std::cout << "Loaded camera state, sequence: " << cameraState.sequenceNumber
+              << std::endl;
+  } else {
+    std::cout << "No camera state file found, using defaults" << std::endl;
+  }
+}
+
+void CameraManager::saveCameraState() {
+  const char* home = std::getenv("HOME");
+  if (!home) return;
+
+  std::string cacheDir = std::string(home) + "/.cache/cocoscanner";
+  std::filesystem::create_directories(cacheDir);
+
+  std::string stateFile = cacheDir + "/camera_state.json";
+  std::ofstream file(stateFile);
+
+  if (file.is_open()) {
+    file << "{\n";
+    file << "  \"sequenceNumber\": " << cameraState.sequenceNumber << ",\n";
+    file << "  \"lastCassette\": \"" << cameraState.lastCassette << "\",\n";
+    file << "  \"lastDate\": \"" << cameraState.lastDate << "\"\n";
+    file << "}\n";
+    file.close();
+    std::cout << "Saved camera state" << std::endl;
+  }
+}
+
+void CameraManager::resetCameraState() {
+  cameraState.sequenceNumber = 1;
+  cameraState.lastCassette = "";
+  cameraState.lastDate = "";
+  saveCameraState();
+  std::cout << "Reset camera state to defaults" << std::endl;
 }

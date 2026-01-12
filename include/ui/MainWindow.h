@@ -54,6 +54,7 @@ class MainWindow {
   static void on_dialog_cancel(GtkButton *button, gpointer user_data);
   static void on_set_date_clicked(GtkButton *button, gpointer user_data);
   static void on_date_selected(GtkCalendar *calendar, gpointer user_data);
+  static gboolean on_window_close(GtkWindow *window, gpointer user_data);
 };
 
 #endif  // MAINWINDOW_H

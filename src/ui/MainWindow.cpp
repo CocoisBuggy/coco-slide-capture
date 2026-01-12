@@ -239,6 +239,20 @@ void MainWindow::on_dialog_cancel(GtkButton *button, gpointer user_data) {
   delete data;
 }
 
+// Callback for window close
+gboolean MainWindow::on_window_close(GtkWindow *window, gpointer user_data) {
+  MainWindow *self = static_cast<MainWindow *>(user_data);
+  std::cout << "Window close requested - performing cleanup" << std::endl;
+
+  // Explicitly disconnect camera to ensure proper cleanup
+  if (self->camMgr) {
+    self->camMgr->disconnectCamera();
+  }
+
+  // Allow window to close
+  return FALSE;
+}
+
 MainWindow::MainWindow(GtkApplication *app)
     : camMgr(nullptr), renderer(nullptr) {
   // Create window
@@ -305,6 +319,9 @@ MainWindow::MainWindow(GtkApplication *app)
   g_signal_connect(key_controller, "key-pressed", G_CALLBACK(on_key_press),
                    this);
   gtk_widget_add_controller(window, key_controller);
+
+  // Window close handler for proper cleanup
+  g_signal_connect(window, "close-request", G_CALLBACK(on_window_close), this);
 
   // Initialize camera and live view
   camMgr = new CameraManager();

@@ -3,7 +3,17 @@
 
 #include <EDSDK.h>
 
+#include <filesystem>
+#include <fstream>
 #include <string>
+
+// Persistent camera state data structure
+struct CameraState {
+  int sequenceNumber = 1;
+  std::string lastCassette;
+  std::string lastDate;
+  // Add other camera state as needed
+};
 
 class CameraManager {
  public:
@@ -17,17 +27,27 @@ class CameraManager {
   bool stopLiveView();
   EdsError downloadLiveViewImage(EdsStreamRef* stream);
   bool capture(const std::string& directory);
+  void disconnectCamera();
 
  private:
   EdsCameraRef camera;
   bool isInitialized;
   std::string captureDirectory;
 
+  // Persistent camera state
+  CameraState cameraState;
+
   static EdsError EDSCALLBACK objectEventHandler(EdsObjectEvent event,
                                                  EdsBaseRef object,
                                                  EdsVoid* context);
   void downloadImage(EdsBaseRef object);
   void setCapacityForHost();
+  std::string generateUniqueFilename(const std::string& originalFilename);
+
+  // Persistent state management
+  void loadCameraState();
+  void saveCameraState();
+  void resetCameraState();
 };
 
 #endif  // CAMERAMANAGER_H
