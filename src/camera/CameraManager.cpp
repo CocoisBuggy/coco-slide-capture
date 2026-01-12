@@ -9,6 +9,7 @@
 #include <sstream>
 #include <thread>
 
+#include "camera/ExifWriter.h"
 #include "camera/LiveViewRenderer.h"
 
 CameraManager::CameraManager()
@@ -398,16 +399,13 @@ void CameraManager::downloadImage(EdsBaseRef object) {
   } else {
     std::cout << "Successfully downloaded to " << filepath << std::endl;
 
-    // Save comment to metadata file if comment is not empty
+    // Write comment and date to EXIF data if comment is not empty
     if (!currentComment.empty()) {
-      std::string metadataPath = filepath + ".comment";
-      std::ofstream metadataFile(metadataPath);
-      if (metadataFile.is_open()) {
-        metadataFile << currentComment;
-        metadataFile.close();
-        std::cout << "Comment saved to " << metadataPath << std::endl;
+      if (ExifWriter::writeCommentAndDate(filepath, currentComment)) {
+        std::cout << "Comment and date written to EXIF data of " << filepath
+                  << std::endl;
       } else {
-        std::cout << "Failed to save comment to " << metadataPath << std::endl;
+        std::cout << "Failed to write EXIF data to " << filepath << std::endl;
       }
     }
   }

@@ -45,5 +45,3 @@ class MainWindow {
 };
 
 #endif  // MAINWINDOW_H
-
-#endif  // MAINWINDOW_H

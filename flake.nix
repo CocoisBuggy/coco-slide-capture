@@ -33,6 +33,7 @@
             llvmPackages.lldb
 
             boost
+            exiv2
             fmt
             gtk4
             pkg-config
@@ -58,6 +59,7 @@
                 [
                   llvmPackages.libcxx
                   boost
+                  exiv2
                   fmt
                   gtk4
                   libusb1
@@ -66,8 +68,8 @@
               )
             }:$LD_LIBRARY_PATH
 
-            # Add pkg-config path for GTK4
-            export PKG_CONFIG_PATH="${pkgs.gtk4}/lib/pkgconfig:$PKG_CONFIG_PATH"
+            # Add pkg-config path for GTK4 and Exiv2
+            export PKG_CONFIG_PATH="${pkgs.gtk4}/lib/pkgconfig:${pkgs.exiv2}/lib/pkgconfig:$PKG_CONFIG_PATH"
           '';
         };
       }

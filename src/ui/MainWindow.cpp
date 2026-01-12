@@ -1,12 +1,8 @@
 #include "ui/MainWindow.h"
 
-#include <cairo.h>
-#include <gdk-pixbuf/gdk-pixbuf.h>
-
-#include <algorithm>
-#include <cctype>
-#include <iostream>
-#include <string>
+#include "LiveViewDrawer.h"
+#include "UIBuilder.h"
+#include "ui/UIBuilder.h"
 
 MainWindow::MainWindow(GtkApplication *app)
     : camMgr(nullptr), renderer(nullptr) {

@@ -5,14 +5,20 @@ project(film CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# Export compile commands for clangd
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 # Find packages
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(GTK4 REQUIRED gtk4)
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(EXIV2 REQUIRED exiv2)
 
 # Include directories
 include_directories(include)
 include_directories(include/camera)
 include_directories(include/ui)
+include_directories(src/ui)
 include_directories(EDSDK/Header)
 
 # EDSDK library
@@ -27,6 +33,7 @@ set_target_properties(edsdk PROPERTIES
 set(SOURCES
     src/main.cpp
     src/camera/CameraManager.cpp
+    src/camera/ExifWriter.cpp
     src/camera/LiveViewRenderer.cpp
     src/ui/MainWindow.cpp
     src/ui/LiveViewDrawer.cpp
@@ -37,6 +44,7 @@ set(SOURCES
 
 set(HEADERS
     include/camera/CameraManager.h
+    include/camera/ExifWriter.h
     include/camera/LiveViewRenderer.h
     include/ui/MainWindow.h
     src/ui/LiveViewDrawer.h
@@ -62,6 +70,7 @@ endif()
 target_link_libraries(film PRIVATE 
     edsdk
     ${GTK4_LIBRARIES}
+    ${EXIV2_LIBRARIES}
 )
 
 # Include directories
@@ -69,6 +78,7 @@ target_include_directories(film PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
     ${CMAKE_CURRENT_SOURCE_DIR}/EDSDK/Header
     ${GTK4_INCLUDE_DIRS}
+    ${EXIV2_INCLUDE_DIRS}
 )
 
 # Add compatibility definitions
