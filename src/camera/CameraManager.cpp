@@ -176,12 +176,13 @@ EdsError CameraManager::downloadLiveViewImage(EdsStreamRef* stream) {
 }
 
 bool CameraManager::capture(const std::string& directory,
-                            const std::string& comment,
+                            const std::string& comment, int star_rating,
                             LiveViewRenderer* renderer) {
   if (!camera) return false;
 
-  // Store the current comment for this photo
+  // Store the current comment and star rating for this photo
   currentComment = comment;
+  currentStarRating = star_rating;
 
   // Pause live view renderer to prevent conflicts
   if (renderer) {
@@ -401,7 +402,8 @@ void CameraManager::downloadImage(EdsBaseRef object) {
 
     // Write comment and date to EXIF data if comment is not empty
     if (!currentComment.empty()) {
-      if (ExifWriter::writeCommentAndDate(filepath, currentComment)) {
+      if (ExifWriter::writeCommentAndDate(filepath, currentComment,
+                                          currentStarRating)) {
         std::cout << "Comment and date written to EXIF data of " << filepath
                   << std::endl;
       } else {

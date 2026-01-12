@@ -1,4 +1,4 @@
-#include "ui/BatchDialog.h"
+#include "BatchDialog.h"
 
 #include <algorithm>
 #include <cctype>

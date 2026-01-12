@@ -2,10 +2,9 @@
 
 #include "LiveViewDrawer.h"
 #include "UIBuilder.h"
-#include "ui/UIBuilder.h"
 
 MainWindow::MainWindow(GtkApplication *app)
-    : camMgr(nullptr), renderer(nullptr) {
+    : camMgr(nullptr), renderer(nullptr), star_rating(0) {
   // Create UI using UIBuilder
   UIBuilder::create_main_window(app, this);
 

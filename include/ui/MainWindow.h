@@ -32,12 +32,14 @@ class MainWindow {
   GtkWidget *popover;
   GtkWidget *calendar;
   GtkWidget *comment_entry;
+  GtkWidget *star_rating_widget;
 
   // State accessible to other modules
   std::string active_directory;
   std::string context_date;
   std::string batch_name;
   std::string photo_comment;
+  int star_rating;
 
   // Camera accessible to other modules
   CameraManager *camMgr;

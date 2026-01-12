@@ -10,7 +10,7 @@
 namespace ExifWriter {
 
 bool writeCommentAndDate(const std::string& imagePath,
-                         const std::string& comment) {
+                         const std::string& comment, int star_rating) {
   try {
     // Load the image
     Exiv2::Image::UniquePtr image = Exiv2::ImageFactory::open(imagePath);
@@ -43,6 +43,13 @@ bool writeCommentAndDate(const std::string& imagePath,
     if (!comment.empty()) {
       exifData["Exif.Image.ImageDescription"] = comment;
       exifData["Exif.Photo.UserComment"] = comment;
+    }
+
+    // Add star rating to EXIF data
+    if (star_rating >= 0 && star_rating <= 5) {
+      exifData["Exif.Image.Rating"] = uint16_t(star_rating);
+      exifData["Exif.Image.RatingPercent"] =
+          uint16_t(star_rating * 20);  // 0-100 scale
     }
 
     // Write the metadata back to the image

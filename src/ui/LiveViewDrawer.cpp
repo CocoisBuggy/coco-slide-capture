@@ -1,4 +1,4 @@
-#include "ui/LiveViewDrawer.h"
+#include "LiveViewDrawer.h"
 
 #include <cairo.h>
 #include <gdk-pixbuf/gdk-pixbuf.h>
